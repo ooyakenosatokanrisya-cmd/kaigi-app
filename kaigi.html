@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>介護相談管理者会議</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ── リセット & 変数 ─────────────────────────── */
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f5f4f0;
+  --surface:#ffffff;
+  --surface2:#f0ede8;
+  --border:#e2ddd6;
+  --border2:#ccc7be;
+  --text:#1a1814;
+  --text2:#6b6660;
+  --text3:#a09b94;
+  --accent:#2d6a4f;
+  --accent-bg:#e8f4ee;
+  --accent-text:#1b4332;
+  --warn-bg:#fff8e6;
+  --warn-text:#7a5c00;
+  --info-bg:#e8f0fb;
+  --info-text:#1a3a6b;
+  --danger:#b91c1c;
+  --radius:8px;
+  --radius-lg:12px;
+  --shadow:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.04);
+  --font:'Noto Sans JP',sans-serif;
+}
+body{font-family:var(--font);background:var(--bg);color:var(--text);font-size:14px;min-height:100vh}
+input,select,textarea,button{font-family:var(--font);font-size:13px}
+input[type=text],input[type=date],input[type=time],select,textarea{
+  width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);
+  background:var(--surface);color:var(--text);outline:none;transition:border .15s}
+input[type=text]:focus,input[type=date]:focus,input[type=time]:focus,select:focus,textarea:focus{border-color:var(--accent)}
+textarea{resize:vertical;min-height:72px;line-height:1.6}
+
+/* ── レイアウト ──────────────────────────────── */
+.page-header{
+  background:var(--accent);color:#fff;padding:14px 24px;
+  display:flex;align-items:center;gap:12px;
+  box-shadow:0 2px 8px rgba(0,0,0,.15)
+}
+.page-header h1{font-size:16px;font-weight:600;letter-spacing:.03em}
+.page-header .subtitle{font-size:12px;opacity:.75;margin-top:2px}
+.sync-status{margin-left:auto;font-size:11px;display:flex;align-items:center;gap:6px;opacity:.9}
+.sync-dot{width:7px;height:7px;border-radius:50%;background:#86efac}
+.sync-dot.syncing{background:#fde68a;animation:pulse .8s infinite}
+.sync-dot.error{background:#fca5a5}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+.app-body{display:grid;grid-template-columns:270px 1fr;gap:0;height:calc(100vh - 54px)}
+
+/* ── サイドバー ──────────────────────────────── */
+.sidebar{background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.sb-toolbar{padding:12px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:8px}
+.sb-toolbar input{font-size:12px}
+.btn-new{background:var(--accent);color:#fff;border:none;border-radius:var(--radius);padding:7px 14px;font-size:13px;font-weight:500;cursor:pointer;display:flex;align-items:center;gap:6px;transition:opacity .15s}
+.btn-new:hover{opacity:.85}
+.btn-refresh{background:transparent;border:1px solid var(--border);color:var(--text2);border-radius:var(--radius);padding:6px 10px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:4px;transition:background .15s}
+.btn-refresh:hover{background:var(--surface2)}
+.sb-actions{display:flex;gap:6px}
+
+.meeting-list{flex:1;overflow-y:auto;padding:8px}
+.meeting-card{padding:10px 12px;border-radius:var(--radius);cursor:pointer;border:1px solid transparent;margin-bottom:4px;transition:all .15s}
+.meeting-card:hover{background:var(--surface2);border-color:var(--border)}
+.meeting-card.active{background:var(--accent-bg);border-color:var(--accent)}
+.mc-date{font-size:11px;color:var(--text3);margin-bottom:3px}
+.mc-title{font-size:13px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mc-meta{display:flex;gap:4px;margin-top:4px;flex-wrap:wrap}
+.badge{display:inline-block;font-size:10px;padding:2px 7px;border-radius:3px;font-weight:500}
+.badge-planned{background:var(--info-bg);color:var(--info-text)}
+.badge-done{background:var(--accent-bg);color:var(--accent-text)}
+.badge-inprogress{background:var(--warn-bg);color:var(--warn-text)}
+.badge-count{background:var(--surface2);color:var(--text2)}
+
+/* ── メインエリア ─────────────────────────────── */
+.main{display:flex;flex-direction:column;overflow:hidden;background:var(--bg)}
+.empty-state{margin:auto;text-align:center;color:var(--text3);padding:40px}
+.empty-state svg{width:48px;height:48px;margin:0 auto 14px;display:block;opacity:.4}
+.empty-state p{font-size:14px;color:var(--text2)}
+.empty-state small{font-size:12px;color:var(--text3);margin-top:6px;display:block}
+
+.editor{display:none;flex-direction:column;flex:1;overflow:hidden}
+.editor.open{display:flex}
+
+.editor-header{padding:12px 20px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+.editor-header h2{font-size:15px;font-weight:600;color:var(--text);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tab-bar{display:flex;gap:2px;background:var(--surface2);padding:3px;border-radius:var(--radius);flex-shrink:0}
+.tab{padding:5px 14px;font-size:12px;border-radius:6px;cursor:pointer;color:var(--text2);border:none;background:transparent;transition:.15s;white-space:nowrap}
+.tab.active{background:var(--surface);color:var(--text);font-weight:500;box-shadow:var(--shadow)}
+
+.editor-content{flex:1;overflow-y:auto;padding:20px}
+.panel{display:none}
+.panel.active{display:block}
+
+.field-group{margin-bottom:14px}
+.field-label{font-size:11px;font-weight:600;color:var(--text2);margin-bottom:5px;display:block;text-transform:uppercase;letter-spacing:.04em}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+
+/* 議題 */
+.agenda-list{display:flex;flex-direction:column;gap:7px;margin-bottom:10px}
+.agenda-row{display:flex;gap:8px;align-items:flex-start;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface)}
+.agenda-num{width:22px;height:22px;border-radius:50%;background:var(--accent-bg);color:var(--accent-text);font-size:10px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px}
+.agenda-body{flex:1;min-width:0}
+.agenda-body>.ag-title{border:none;background:transparent;font-size:13px;font-weight:500;width:100%;padding:0;color:var(--text);outline:none}
+.agenda-body>.ag-title:focus{border-bottom:1px solid var(--accent)}
+.agenda-meta{display:flex;gap:6px;margin-top:5px;flex-wrap:wrap}
+.agenda-meta select,.agenda-meta input{width:auto;font-size:11px;padding:3px 6px}
+
+/* 議事録 */
+.section-title{font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px;display:flex;align-items:center;gap:6px;text-transform:uppercase;letter-spacing:.04em;padding-bottom:6px;border-bottom:1px solid var(--border)}
+.decisions-list,.actions-list{display:flex;flex-direction:column;gap:5px;margin-bottom:8px}
+.decision-row,.action-row{display:flex;gap:6px;align-items:center}
+.decision-row input,.action-row input{flex:1}
+.action-row .owner{width:90px;flex-shrink:0}
+.action-row .due{width:112px;flex-shrink:0}
+.minutes-block{margin-bottom:22px}
+
+/* ボタン共通 */
+.btn-add{font-size:12px;color:var(--text2);background:transparent;border:1px dashed var(--border2);border-radius:var(--radius);padding:6px 12px;cursor:pointer;width:100%;transition:.15s}
+.btn-add:hover{background:var(--surface2);color:var(--text)}
+.btn-icon{background:transparent;border:none;color:var(--text3);cursor:pointer;padding:2px;font-size:16px;line-height:1;flex-shrink:0}
+.btn-icon:hover{color:var(--danger)}
+
+/* フッター */
+.editor-footer{padding:10px 20px;background:var(--surface);border-top:1px solid var(--border);display:flex;align-items:center;gap:8px}
+.footer-info{font-size:11px;color:var(--text3);flex:1}
+.btn-danger{background:transparent;color:var(--danger);border:1px solid #fca5a5;padding:6px 14px;border-radius:var(--radius);font-size:13px;cursor:pointer;transition:.15s}
+.btn-danger:hover{background:#fef2f2}
+.btn-outline{background:transparent;color:var(--text);border:1px solid var(--border2);padding:6px 14px;border-radius:var(--radius);font-size:13px;cursor:pointer;transition:.15s}
+.btn-outline:hover{background:var(--surface2)}
+.btn-save{background:var(--accent);color:#fff;border:none;padding:6px 18px;border-radius:var(--radius);font-size:13px;font-weight:500;cursor:pointer;display:flex;align-items:center;gap:6px;transition:opacity .15s}
+.btn-save:hover{opacity:.85}
+.btn-save:disabled{opacity:.5;cursor:default}
+
+/* GAS設定モーダル */
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100;display:flex;align-items:center;justify-content:center}
+.modal{background:var(--surface);border-radius:var(--radius-lg);padding:28px;width:520px;max-width:90vw;box-shadow:0 20px 60px rgba(0,0,0,.2)}
+.modal h3{font-size:16px;font-weight:600;margin-bottom:6px}
+.modal p{font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.7}
+.modal .step{background:var(--surface2);border-radius:var(--radius);padding:12px 14px;margin-bottom:10px;font-size:13px;line-height:1.7}
+.modal .step strong{color:var(--accent)}
+.modal input{margin:10px 0 4px}
+.modal-footer{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
+
+/* トースト */
+.toast{position:fixed;bottom:20px;right:20px;background:var(--text);color:#fff;font-size:13px;padding:9px 16px;border-radius:var(--radius);z-index:200;opacity:0;transition:opacity .25s;pointer-events:none}
+.toast.show{opacity:1}
+
+/* ローディング */
+.loading{display:flex;align-items:center;justify-content:center;height:100%;flex-direction:column;gap:12px;color:var(--text2)}
+.spinner{width:28px;height:28px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<!-- ページヘッダー -->
+<div class="page-header">
+  <div>
+    <h1>介護相談管理者会議</h1>
+    <div class="subtitle">議題・議事録管理システム</div>
+  </div>
+  <div class="sync-status" id="syncStatus">
+    <span class="sync-dot" id="syncDot"></span>
+    <span id="syncLabel">接続中...</span>
+  </div>
+  <button class="btn-refresh" style="margin-left:10px;color:#fff;border-color:rgba(255,255,255,.4);background:rgba(255,255,255,.1)" onclick="showSettings()">⚙ 設定</button>
+</div>
+
+<div class="app-body">
+  <!-- サイドバー -->
+  <div class="sidebar">
+    <div class="sb-toolbar">
+      <div class="sb-actions">
+        <button class="btn-new" onclick="newMeeting()" style="flex:1">＋ 新規追加</button>
+        <button class="btn-refresh" onclick="loadAll()" title="最新データを取得">↻ 更新</button>
+      </div>
+      <input type="text" id="searchBox" placeholder="日付・キーワードで検索..." oninput="renderList()">
+    </div>
+    <div class="meeting-list" id="meetingList">
+      <div class="loading"><div class="spinner"></div><span>読み込み中...</span></div>
+    </div>
+  </div>
+
+  <!-- メイン -->
+  <div class="main">
+    <div class="empty-state" id="emptyState">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>
+      </svg>
+      <p>会議を選択、または新規作成してください</p>
+      <small>データはGoogleスプレッドシートで共有されます</small>
+    </div>
+    <div class="editor" id="editor">
+      <div class="editor-header">
+        <h2 id="editorTitle">会議の詳細</h2>
+        <div class="tab-bar">
+          <button class="tab active" onclick="switchTab('info')">基本情報</button>
+          <button class="tab" onclick="switchTab('agenda')">議題</button>
+          <button class="tab" onclick="switchTab('minutes')">議事録</button>
+        </div>
+      </div>
+      <div class="editor-content">
+        <!-- 基本情報 -->
+        <div class="panel active" id="panel-info">
+          <div class="field-group">
+            <label class="field-label">会議名</label>
+            <input type="text" id="f-title" placeholder="介護相談管理者会議">
+          </div>
+          <div class="row3">
+            <div class="field-group"><label class="field-label">日付</label><input type="date" id="f-date"></div>
+            <div class="field-group"><label class="field-label">開始時刻</label><input type="time" id="f-start"></div>
+            <div class="field-group"><label class="field-label">終了時刻</label><input type="time" id="f-end"></div>
+          </div>
+          <div class="row2">
+            <div class="field-group"><label class="field-label">場所 / URL</label><input type="text" id="f-location" placeholder="会議室・Zoom等"></div>
+            <div class="field-group">
+              <label class="field-label">ステータス</label>
+              <select id="f-status">
+                <option value="planned">予定</option>
+                <option value="inprogress">進行中</option>
+                <option value="done">完了</option>
+              </select>
+            </div>
+          </div>
+          <div class="field-group"><label class="field-label">参加者</label><input type="text" id="f-attendees" placeholder="氏名をカンマ区切りで入力"></div>
+          <div class="field-group"><label class="field-label">備考</label><textarea id="f-notes" rows="3" placeholder="会議の目的・背景など"></textarea></div>
+        </div>
+        <!-- 議題 -->
+        <div class="panel" id="panel-agenda">
+          <div class="agenda-list" id="agendaList"></div>
+          <button class="btn-add" onclick="addAgendaItem()">＋ 議題を追加</button>
+        </div>
+        <!-- 議事録 -->
+        <div class="panel" id="panel-minutes">
+          <div class="minutes-block">
+            <div class="section-title">📝 議事メモ</div>
+            <textarea id="f-memo" rows="5" placeholder="会議中の発言・議論の要点を記入してください"></textarea>
+          </div>
+          <div class="minutes-block">
+            <div class="section-title">✅ 決定事項</div>
+            <div class="decisions-list" id="decisionsList"></div>
+            <button class="btn-add" onclick="addDecision()">＋ 決定事項を追加</button>
+          </div>
+          <div class="minutes-block">
+            <div class="section-title">📋 アクションアイテム</div>
+            <div class="actions-list" id="actionsList"></div>
+            <button class="btn-add" onclick="addAction()">＋ アクションを追加</button>
+          </div>
+        </div>
+      </div>
+      <div class="editor-footer">
+        <span class="footer-info" id="footerInfo"></span>
+        <button class="btn-danger" onclick="deleteMeeting()">🗑 削除</button>
+        <button class="btn-outline" onclick="exportText()">📄 テキスト出力</button>
+        <button class="btn-save" id="saveBtn" onclick="saveMeeting()">💾 保存・共有</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- GAS設定モーダル -->
+<div class="modal-backdrop" id="settingsModal" style="display:none" onclick="closeSettings(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <h3>⚙ Google連携の設定</h3>
+    <p>Google Apps ScriptのウェブアプリURLを入力してください。<br>設定方法は以下の手順を参考にしてください。</p>
+    <div class="step"><strong>① </strong>Googleスプレッドシートを新規作成する</div>
+    <div class="step"><strong>② </strong>「拡張機能」→「Apps Script」を開き、<br>同梱の <code>gas_code.gs</code> の内容を貼り付け、スプレッドシートIDを設定して保存する</div>
+    <div class="step"><strong>③ </strong>「デプロイ」→「新しいデプロイ」→種類:ウェブアプリ<br>アクセス権限: <strong>全員</strong> にして「デプロイ」</div>
+    <div class="step"><strong>④ </strong>表示されたウェブアプリのURLを下に貼り付けて「保存」</div>
+    <div class="field-group">
+      <label class="field-label">ウェブアプリURL</label>
+      <input type="text" id="gasUrlInput" placeholder="https://script.google.com/macros/s/xxxxxxxx/exec">
+    </div>
+    <div class="modal-footer">
+      <button class="btn-outline" onclick="closeSettings()">キャンセル</button>
+      <button class="btn-save" onclick="saveSettings()">💾 保存して接続</button>
+    </div>
+  </div>
+</div>
+
+<!-- トースト -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ============================================================
+// 設定
+// ============================================================
+// 既定の共有URL（おおやけの里 会議データ）
+var DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbzk-7gdZ7jlUuSnVIRXYyrpBA6wMNT1k3MF1xhRcM8E0uTo8DK3N8QpVgm3Podo5m2iEA/exec';
+var GAS_URL = localStorage.getItem('gas_url') || DEFAULT_GAS_URL;
+var meetings = [];
+var currentId = null;
+
+// ============================================================
+// 起動
+// ============================================================
+window.addEventListener('DOMContentLoaded', function(){
+  if(!GAS_URL){
+    setSyncStatus('error','未接続');
+    document.getElementById('meetingList').innerHTML =
+      '<p style="font-size:12px;color:#a09b94;text-align:center;padding:20px;line-height:1.7">⚙ 右上の「設定」から<br>Google Apps ScriptのURLを<br>設定してください</p>';
+    showSettings();
+  } else {
+    loadAll();
+  }
+});
+
+// ============================================================
+// API通信
+// ============================================================
+function apiGet(){
+  return fetch(GAS_URL).then(function(r){return r.json();});
+}
+function apiPost(body){
+  return fetch(GAS_URL,{method:'POST',body:JSON.stringify(body)}).then(function(r){return r.json();});
+}
+
+async function loadAll(){
+  if(!GAS_URL){return;}
+  setSyncStatus('syncing','読み込み中...');
+  document.getElementById('meetingList').innerHTML =
+    '<div class="loading"><div class="spinner"></div><span>読み込み中...</span></div>';
+  try{
+    var res = await apiGet();
+    if(res.status==='ok'){
+      meetings = (res.meetings||[]).sort(function(a,b){return a.date.localeCompare(b.date);});
+      if(!meetings.length) seedData();
+      setSyncStatus('ok','同期済み');
+    } else {
+      throw new Error(res.message);
+    }
+  }catch(e){
+    setSyncStatus('error','接続エラー');
+    showToast('接続に失敗しました: '+e.message);
+    meetings = JSON.parse(localStorage.getItem('mtg_offline')||'[]');
+  }
+  renderList();
+}
+
+async function saveToServer(m){
+  setSyncStatus('syncing','保存中...');
+  try{
+    m.updatedAt = new Date().toISOString();
+    await apiPost({action:'save',meeting:m});
+    saveOffline();
+    setSyncStatus('ok','同期済み');
+    return true;
+  }catch(e){
+    setSyncStatus('error','保存失敗');
+    saveOffline();
+    return false;
+  }
+}
+
+async function deleteFromServer(id){
+  try{await apiPost({action:'delete',id:id});}catch(e){}
+}
+
+function saveOffline(){
+  try{localStorage.setItem('mtg_offline',JSON.stringify(meetings));}catch(e){}
+}
+
+// ============================================================
+// 初期データ
+// ============================================================
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
+
+function getNextDates(dow,count,from){
+  var dates=[],d=new Date(from);d.setHours(0,0,0,0);
+  for(var i=0;dates.length<count;i++){var t=new Date(d);t.setDate(d.getDate()+i);if(t.getDay()===dow)dates.push(t.toISOString().slice(0,10));}
+  return dates;
+}
+
+function mkMtg(date,recur){
+  return{id:uid(),title:'介護相談管理者会議',date:date,start:'08:00',end:'08:30',
+    location:'',status:'planned',recur:recur,attendees:'',notes:'',
+    agenda:[],memo:'',decisions:[],actions:[],updatedAt:new Date().toISOString()};
+}
+
+async function seedData(){
+  var list=[];
+  getNextDates(1,4,'2026-06-01').forEach(function(d){list.push(mkMtg(d,'weekly-mon'));});
+  getNextDates(5,4,'2026-06-01').forEach(function(d){list.push(mkMtg(d,'weekly-fri'));});
+  meetings=list.sort(function(a,b){return a.date.localeCompare(b.date);});
+  for(var i=0;i<meetings.length;i++) await saveToServer(meetings[i]);
+  renderList();
+}
+
+// ============================================================
+// 表示
+// ============================================================
+function formatDate(d){
+  if(!d)return '';
+  var p=d.split('-'),w=['日','月','火','水','木','金','土'];
+  return p[0]+'/'+p[1]+'/'+p[2]+'（'+w[new Date(d+'T00:00:00').getDay()]+'）';
+}
+function statusLabel(s){return s==='done'?'完了':s==='inprogress'?'進行中':'予定';}
+
+function renderList(){
+  var q=(document.getElementById('searchBox').value||'').toLowerCase();
+  var el=document.getElementById('meetingList');
+  var filtered=meetings.filter(function(m){return !q||(m.title+m.date+(m.attendees||'')).toLowerCase().includes(q);});
+  if(!filtered.length){el.innerHTML='<p style="font-size:12px;color:var(--text3);text-align:center;padding:16px">該当なし</p>';return;}
+  el.innerHTML=filtered.map(function(m){
+    return '<div class="meeting-card'+(m.id===currentId?' active':'')+'" onclick="selectMeeting(\''+m.id+'\')">'
+      +'<div class="mc-date">'+formatDate(m.date)+' '+m.start+'〜'+m.end+'</div>'
+      +'<div class="mc-title">'+(m.title||'(未設定)')+'</div>'
+      +'<div class="mc-meta">'
+      +'<span class="badge badge-'+(m.status||'planned')+'">'+statusLabel(m.status)+'</span>'
+      +(m.agenda.length?'<span class="badge badge-count">議題 '+m.agenda.length+'件</span>':'')
+      +(m.decisions&&m.decisions.length?'<span class="badge badge-done">決定 '+m.decisions.length+'件</span>':'')
+      +'</div></div>';
+  }).join('');
+}
+
+function selectMeeting(id){
+  currentId=id;
+  var m=meetings.find(function(x){return x.id===id;});
+  if(!m)return;
+  loadForm(m);
+  document.getElementById('emptyState').style.display='none';
+  var ed=document.getElementById('editor');ed.className='editor open';
+  document.getElementById('editorTitle').textContent=m.title||'会議の詳細';
+  document.getElementById('footerInfo').textContent=m.updatedAt?'最終更新: '+new Date(m.updatedAt).toLocaleString('ja-JP',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}):'';
+  renderList();
+  switchTab('info');
+}
+
+function loadForm(m){
+  document.getElementById('f-title').value=m.title||'';
+  document.getElementById('f-date').value=m.date||'';
+  document.getElementById('f-start').value=m.start||'';
+  document.getElementById('f-end').value=m.end||'';
+  document.getElementById('f-location').value=m.location||'';
+  document.getElementById('f-status').value=m.status||'planned';
+  document.getElementById('f-attendees').value=m.attendees||'';
+  document.getElementById('f-notes').value=m.notes||'';
+  document.getElementById('f-memo').value=m.memo||'';
+  renderAgenda(m.agenda||[]);
+  renderDecisions(m.decisions||[]);
+  renderActions(m.actions||[]);
+}
+
+function getCurrent(){return meetings.find(function(x){return x.id===currentId;});}
+
+function readForm(){
+  var m=getCurrent();if(!m)return;
+  m.title=document.getElementById('f-title').value;
+  m.date=document.getElementById('f-date').value;
+  m.start=document.getElementById('f-start').value;
+  m.end=document.getElementById('f-end').value;
+  m.location=document.getElementById('f-location').value;
+  m.status=document.getElementById('f-status').value;
+  m.attendees=document.getElementById('f-attendees').value;
+  m.notes=document.getElementById('f-notes').value;
+  m.memo=document.getElementById('f-memo').value;
+  m.agenda=readAgenda();
+  m.decisions=readDecisions();
+  m.actions=readActions();
+}
+
+// ============================================================
+// 保存・削除
+// ============================================================
+async function saveMeeting(){
+  readForm();
+  var m=getCurrent();if(!m)return;
+  var btn=document.getElementById('saveBtn');
+  btn.disabled=true;btn.textContent='保存中...';
+  var ok=await saveToServer(m);
+  btn.disabled=false;btn.innerHTML='💾 保存・共有';
+  renderList();
+  document.getElementById('editorTitle').textContent=m.title||'会議の詳細';
+  document.getElementById('footerInfo').textContent='最終更新: '+new Date(m.updatedAt).toLocaleString('ja-JP',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
+  showToast(ok?'✓ 保存・共有しました':'保存しました（オフライン）');
+}
+
+function newMeeting(){
+  var m=mkMtg(new Date().toISOString().slice(0,10),'none');
+  meetings.push(m);
+  meetings.sort(function(a,b){return a.date.localeCompare(b.date);});
+  selectMeeting(m.id);
+}
+
+async function deleteMeeting(){
+  if(!currentId)return;
+  if(!confirm('この会議を削除しますか？\n削除すると共有データからも消えます。'))return;
+  await deleteFromServer(currentId);
+  meetings=meetings.filter(function(x){return x.id!==currentId;});
+  currentId=null;saveOffline();renderList();
+  document.getElementById('emptyState').style.display='';
+  document.getElementById('editor').className='editor';
+}
+
+// ============================================================
+// タブ
+// ============================================================
+function switchTab(tab){
+  var tabs=document.querySelectorAll('.tab');
+  var names=['info','agenda','minutes'];
+  tabs.forEach(function(t,i){t.classList.toggle('active',names[i]===tab);});
+  document.querySelectorAll('.panel').forEach(function(p){p.classList.remove('active');});
+  document.getElementById('panel-'+tab).classList.add('active');
+}
+
+// ============================================================
+// 議題
+// ============================================================
+function renderAgenda(items){
+  document.getElementById('agendaList').innerHTML=items.map(function(a,i){
+    return '<div class="agenda-row" data-id="'+a.id+'">'
+      +'<span class="agenda-num">'+(i+1)+'</span>'
+      +'<div class="agenda-body">'
+      +'<input class="ag-title" type="text" value="'+esc(a.title)+'" placeholder="議題タイトル">'
+      +'<div class="agenda-meta">'
+      +'<select class="ag-type"><option value="discussion"'+(a.type==='discussion'?' selected':'')+'>議論</option><option value="report"'+(a.type==='report'?' selected':'')+'>報告</option><option value="decision"'+(a.type==='decision'?' selected':'')+'>決議</option><option value="qa"'+(a.type==='qa'?' selected':'')+'>QA</option></select>'
+      +'<input class="ag-owner" type="text" value="'+esc(a.owner)+'" placeholder="担当" style="width:80px">'
+      +'<input class="ag-dur" type="text" value="'+esc(a.duration)+'" placeholder="分" style="width:44px">'
+      +'<span style="font-size:11px;color:var(--text3);line-height:2.2">分</span>'
+      +'</div></div>'
+      +'<button class="btn-icon" onclick="removeAgendaItem(\''+a.id+'\')">✕</button>'
+      +'</div>';
+  }).join('');
+}
+
+function readAgenda(){
+  return Array.from(document.querySelectorAll('#agendaList .agenda-row')).map(function(r){
+    return{id:r.dataset.id,title:r.querySelector('.ag-title').value,
+      type:r.querySelector('.ag-type').value,owner:r.querySelector('.ag-owner').value,
+      duration:r.querySelector('.ag-dur').value};});
+}
+
+function addAgendaItem(){
+  var m=getCurrent();if(!m)return;readForm();
+  m.agenda.push({id:uid(),title:'',type:'discussion',owner:'',duration:'10'});
+  renderAgenda(m.agenda);
+}
+
+function removeAgendaItem(id){
+  var m=getCurrent();if(!m)return;readForm();
+  m.agenda=m.agenda.filter(function(a){return a.id!==id;});renderAgenda(m.agenda);
+}
+
+// ============================================================
+// 決定事項
+// ============================================================
+function renderDecisions(items){
+  document.getElementById('decisionsList').innerHTML=items.map(function(d,i){
+    return '<div class="decision-row">'
+      +'<span style="font-size:12px;color:var(--text2);line-height:2.2;width:18px;text-align:center;flex-shrink:0">'+(i+1)+'</span>'
+      +'<input type="text" value="'+esc(d)+'" placeholder="決定事項を入力">'
+      +'<button class="btn-icon" onclick="removeDecision('+i+')">✕</button>'
+      +'</div>';
+  }).join('');
+}
+
+function readDecisions(){
+  return Array.from(document.querySelectorAll('#decisionsList .decision-row input[type=text]')).map(function(i){return i.value;}).filter(function(v){return v;});
+}
+
+function addDecision(){
+  var m=getCurrent();if(!m)return;readForm();m.decisions.push('');renderDecisions(m.decisions);
+}
+
+function removeDecision(idx){
+  var m=getCurrent();if(!m)return;readForm();m.decisions.splice(idx,1);renderDecisions(m.decisions);
+}
+
+// ============================================================
+// アクション
+// ============================================================
+function renderActions(items){
+  document.getElementById('actionsList').innerHTML=items.map(function(a,i){
+    return '<div class="action-row">'
+      +'<input class="ac-task" type="text" value="'+esc(a.task)+'" placeholder="タスク内容">'
+      +'<input class="ac-owner owner" type="text" value="'+esc(a.owner)+'" placeholder="担当者">'
+      +'<input class="ac-due due" type="date" value="'+esc(a.due)+'">'
+      +'<button class="btn-icon" onclick="removeAction('+i+')">✕</button>'
+      +'</div>';
+  }).join('');
+}
+
+function readActions(){
+  return Array.from(document.querySelectorAll('#actionsList .action-row')).map(function(r){
+    return{task:r.querySelector('.ac-task').value,owner:r.querySelector('.ac-owner').value,due:r.querySelector('.ac-due').value};
+  }).filter(function(a){return a.task;});
+}
+
+function addAction(){
+  var m=getCurrent();if(!m)return;readForm();m.actions.push({task:'',owner:'',due:''});renderActions(m.actions);
+}
+
+function removeAction(idx){
+  var m=getCurrent();if(!m)return;readForm();m.actions.splice(idx,1);renderActions(m.actions);
+}
+
+// ============================================================
+// テキスト出力
+// ============================================================
+function exportText(){
+  readForm();var m=getCurrent();if(!m)return;
+  var lines=['# 議事録','',m.title,'日時: '+formatDate(m.date)+' '+m.start+'\u301c'+m.end,'場所: '+(m.location||'-'),'参加者: '+(m.attendees||'-'),''];
+  if(m.agenda&&m.agenda.length){lines.push('## 議題');m.agenda.forEach(function(a,i){lines.push((i+1)+'. '+a.title+' ('+(a.owner||'-')+'/'+(a.duration||'-')+'分)');});lines.push('');}
+  if(m.memo){lines.push('## 議事メモ');lines.push(m.memo);lines.push('');}
+  if(m.decisions&&m.decisions.length){lines.push('## 決定事項');m.decisions.forEach(function(d,i){lines.push((i+1)+'. '+d);});lines.push('');}
+  if(m.actions&&m.actions.length){lines.push('## アクションアイテム');m.actions.forEach(function(a,i){lines.push((i+1)+'. '+a.task+' - '+(a.owner||'-')+' (期限: '+(a.due||'-')+')');});lines.push('');}
+  var txt=lines.join('\n');
+  var blob=new Blob([txt],{type:'text/plain;charset=utf-8'});
+  var url=URL.createObjectURL(blob);
+  var link=document.createElement('a');link.href=url;link.download='\u8b70\u4e8b\u9332_'+(m.date||'').replace(/-/g,'')+'.txt';link.click();URL.revokeObjectURL(url);
+}
+
+// ============================================================
+// 設定モーダル
+// ============================================================
+function showSettings(){
+  document.getElementById('gasUrlInput').value=GAS_URL;
+  document.getElementById('settingsModal').style.display='flex';
+}
+function closeSettings(e){
+  if(!e||e.target===document.getElementById('settingsModal'))
+    document.getElementById('settingsModal').style.display='none';
+}
+async function saveSettings(){
+  var url=document.getElementById('gasUrlInput').value.trim();
+  if(!url){showToast('URLを入力してください');return;}
+  GAS_URL=url;
+  localStorage.setItem('gas_url',GAS_URL);
+  document.getElementById('settingsModal').style.display='none';
+  showToast('設定を保存しました');
+  await loadAll();
+}
+
+// ============================================================
+// ユーティリティ
+// ============================================================
+function setSyncStatus(state,label){
+  var dot=document.getElementById('syncDot'),lbl=document.getElementById('syncLabel');
+  dot.className='sync-dot'+(state==='syncing'?' syncing':state==='error'?' error':'');
+  lbl.textContent=label;
+}
+
+function showToast(msg){
+  var t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');
+  setTimeout(function(){t.classList.remove('show');},2200);
+}
+
+function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');}
+</script>
+</body>
+</html>
